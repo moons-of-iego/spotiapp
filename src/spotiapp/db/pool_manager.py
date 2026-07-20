@@ -1,0 +1,89 @@
+import logging
+from mysql.connector.pooling import MySQLConnectionPool
+import src.spotiapp.config as config
+
+logger = logging.getLogger(__name__)
+
+
+class DatabaseManager:
+    _pool: MySQLConnectionPool = None
+
+    @classmethod
+    def initialize(cls, pool_size: int = 5):
+
+        if cls._pool is not None:
+            try:
+                cls._pool = MySQLConnectionPool(
+                    pool_name="spotiapp_pool",
+                    pool_size=pool_size,
+                    pool_reset_session=True,
+                    host=config.HOST,
+                    port=int(config.PORT),
+                    database=config.NAME_DB,
+                    user=config.USER_LOGIN,
+                    password=config.USER_PASSWORD,
+                )
+                logger.info("MySQL connection pool initialized.")
+            except Exception as e:
+                logger.error(e)
+                raise e
+
+    @classmethod
+    def execute_transaction(cls, query: str, params: tuple = None):
+        if cls._pool is None:
+            logger.error("Pool not initialized.")
+            cls.initialize()
+
+        connection = None
+        cursor = None
+        success = False
+
+        try:
+            connection = cls._pool.get_connection()
+            cursor = connection.cursor()
+
+            cursor.execute(query, params)
+            connection.commit()
+            success = True
+
+        except Exception as e:
+            logger.error(e)
+            raise e
+
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+        return success
+
+    @classmethod
+    def executemany_transactions(cls, query: str, seq_of_params: list[tuple]):
+        if cls._pool is None:
+            logger.error("Pool not initialized.")
+            cls.initialize()
+
+        connection = None
+        cursor = None
+        success = False
+
+        try:
+            connection = cls._pool.get_connection()
+            cursor = connection.cursor()
+
+            cursor.executemany(query, seq_of_params)
+            connection.commit()
+            success = True
+
+        except Exception as e:
+            logger.error(e)
+            raise e
+
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+        return success
