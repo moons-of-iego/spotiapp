@@ -48,20 +48,19 @@ class DatabaseManager:
 
         connection = None
         cursor = None
-        success = False
         data: pd.DataFrame = None
 
         try:
             connection = cls._pool.get_connection()
-            cursor = connection.cursor()
+            cursor = connection.cursor(buffered=True)
 
             cursor.execute(query, params)
             connection.commit()
-            success = True
 
             if verbose:
                 data = cursor.fetchall()
-                print(data)
+                cols = [metadata[0] for metadata in cursor.description]
+                data_df = pd.DataFrame(data=data, columns=cols)
 
         except Exception as e:
             logger.error(e)
@@ -73,7 +72,7 @@ class DatabaseManager:
             if connection:
                 connection.close()
 
-        return data
+        return data_df
 
     @classmethod
     def executescript_transaction(cls, script_query: str):

@@ -1,3 +1,4 @@
+import pandas as pd
 import spotipy
 import pylast
 import spotiapp.config as config
@@ -22,6 +23,7 @@ class SpotifyDataGetter:
 
     def get_liked_tracks_data(self) -> dict:
         self._fetch_saved_tracks()
+        self._get_tracks_not_inserted_yet()
         self._link_tags_data()
         print(f"Collected and enriched {len(self.liked_tracks_dict)} tracks.")
 
@@ -53,7 +55,22 @@ class SpotifyDataGetter:
     def _get_tracks_not_inserted_yet(self):
         """Keep only the tracks not only inserted on the database."""
         query = "SELECT id FROM liked_tracks;"
-        tracks_id_df = DatabaseManager.execute_transaction(query=query, verbose=True)
+        liked_tracks_on_bdd = DatabaseManager.execute_transaction(
+            query=query, verbose=True
+        )
+        liked_tracks_on_spotify = pd.DataFrame(
+            self.liked_tracks_dict.keys(), columns=["id"]
+        )
+        # tracks liked on Spotify, but not inserted on DB yet
+        tracks_to_add = liked_tracks_on_spotify[
+            ~liked_tracks_on_spotify["id"].isin(liked_tracks_on_bdd["id"])
+        ]
+        # tracks inserted on DB but unliked on Spotify since
+        tracks_to_delete = liked_tracks_on_bdd[
+            ~liked_tracks_on_bdd["id"].isin(liked_tracks_on_spotify["id"])
+        ]
+        # todo : only get tags for the tracks to add.
+        # todo : pass the tracks to delete to the loader, to delete from the database
 
     def _link_tags_data(self):
         """
