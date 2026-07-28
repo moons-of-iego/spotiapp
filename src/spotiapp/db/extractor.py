@@ -1,10 +1,10 @@
 import spotipy
 import pylast
-import config
+import src.spotiapp.config as config
 import logging
 from spotipy import SpotifyOAuth
 
-logger = logging.GetLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class SpotifyDataGetter:

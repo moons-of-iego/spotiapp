@@ -11,7 +11,7 @@ class DatabaseManager:
     @classmethod
     def initialize(cls, pool_size: int = 5):
 
-        if cls._pool is not None:
+        if cls._pool is None:
             try:
                 cls._pool = MySQLConnectionPool(
                     pool_name="spotiapp_pool",
@@ -48,6 +48,43 @@ class DatabaseManager:
 
         except Exception as e:
             logger.error(e)
+            raise e
+
+        finally:
+            if cursor:
+                cursor.close()
+            if connection:
+                connection.close()
+
+        return success
+
+    @classmethod
+    def executescript_transaction(cls, script_query: str):
+        if cls._pool is None:
+            logger.error("Pool not initialized.")
+            cls.initialize()
+
+        connection = None
+        cursor = None
+        success = False
+
+        try:
+            connection = cls._pool.get_connection()
+            cursor = connection.cursor()
+
+            results = cursor.execute(script_query, multi=True)
+
+            for _ in results:
+                pass
+
+            connection.commit()
+            logger.info("Script succeeded")
+            success = True
+
+        except Exception as e:
+            if connection:
+                connection.rollback()
+            logger.error(f"Erreur lors de l'exécution du script SQL : {e}")
             raise e
 
         finally:
