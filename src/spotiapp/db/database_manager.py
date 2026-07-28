@@ -1,6 +1,7 @@
 import logging
+import pandas as pd
 from mysql.connector.pooling import MySQLConnectionPool
-import src.spotiapp.config as config
+import spotiapp.config as config
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,18 @@ class DatabaseManager:
                 raise e
 
     @classmethod
-    def execute_transaction(cls, query: str, params: tuple = None):
+    def execute_transaction(
+        cls, query: str, params: tuple = None, verbose: bool = False
+    ) -> pd.DataFrame:
+        """
+        Execute a transaction on the database.
+
+        :param str query: the query to execute.
+        :param tuple params: (Optional) The parameters of the query
+        :param bool verbose: True to return the data fetched by the query. Defaults to None.
+
+        :return data (pd.DataFrame): the data fetched from the query.
+        """
         if cls._pool is None:
             logger.error("Pool not initialized.")
             cls.initialize()
@@ -37,6 +49,7 @@ class DatabaseManager:
         connection = None
         cursor = None
         success = False
+        data: pd.DataFrame = None
 
         try:
             connection = cls._pool.get_connection()
@@ -45,6 +58,10 @@ class DatabaseManager:
             cursor.execute(query, params)
             connection.commit()
             success = True
+
+            if verbose:
+                data = cursor.fetchall()
+                print(data)
 
         except Exception as e:
             logger.error(e)
@@ -56,7 +73,7 @@ class DatabaseManager:
             if connection:
                 connection.close()
 
-        return success
+        return data
 
     @classmethod
     def executescript_transaction(cls, script_query: str):
@@ -96,7 +113,7 @@ class DatabaseManager:
         return success
 
     @classmethod
-    def executemany_transactions(cls, query: str, seq_of_params: list[tuple]):
+    def executemany_transactions(cls, query: str, seq_of_params: list[tuple[str, ...]]):
         if cls._pool is None:
             logger.error("Pool not initialized.")
             cls.initialize()

@@ -9,6 +9,16 @@ dependencies = [
     "mysql-connector-python>=9.7.0",
     "pandas>=3.0.3",
     "pylast>=7.1.0",
+    "pytest>=9.1.1",
     "python-dotenv>=1.2.2",
     "spotipy>=2.26.0",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+log_cli = true
+log_cli_level = "INFO"
+
+[project.scripts]
+spotiapp-run = "spotiapp.main:main"

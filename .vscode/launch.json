@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Spotiapp",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/spotiapp/main.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {"PYTHONPATH": "${workspaceFolder}/src"}
+        }
+    ]
+}

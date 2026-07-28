@@ -2,8 +2,14 @@ import logging
 import sys
 
 
-class CustomFormatter(logging.Formatter):
+class BlockNoisyFilesFilter(logging.Filter):
+    def filter(self, record):
+        if record.filename == "_client.py":
+            return False
+        return True
 
+
+class CustomFormatter(logging.Formatter):
     GREY = "\033[90m"
     BLUE = "\033[94m"
     GREEN = "\033[92m"
@@ -12,16 +18,24 @@ class CustomFormatter(logging.Formatter):
     BOLD = "\033[1m"
     RESET = "\033[0m"
 
-    TIME_FORMAT = "%(asctime)s"
-
     FORMATS = {
-        logging.DEBUG: GREY + "[%(asctime)s] ⚙  [DEBUG] %(message)s" + RESET,
-        logging.INFO: RESET + "[%(asctime)s] " + BLUE + "ℹ  %(message)s" + RESET,
-        logging.WARNING: YELLOW + "[%(asctime)s] ⚠  [ALERTE] %(message)s" + RESET,
-        logging.ERROR: RED + "[%(asctime)s] ✖  [ERREUR] %(message)s" + RESET,
+        logging.DEBUG: GREY
+        + "%(filename)-15s [%(asctime)s] ⚙  [DEBUG] %(message)s"
+        + RESET,
+        logging.INFO: RESET
+        + "%(filename)-15s [%(asctime)s] "
+        + BLUE
+        + "ℹ  %(message)s"
+        + RESET,
+        logging.WARNING: YELLOW
+        + "%(filename)-15s [%(asctime)s] ⚠  [ALERTE] %(message)s"
+        + RESET,
+        logging.ERROR: RED
+        + "%(filename)-15s [%(asctime)s] ✖  [ERREUR] %(message)s"
+        + RESET,
         logging.CRITICAL: RED
         + BOLD
-        + "[%(asctime)s] 💥  [CRITIQUE] %(message)s"
+        + "%(filename)-15s [%(asctime)s] 💥  [CRITIQUE] %(message)s"
         + RESET,
     }
 
@@ -39,6 +53,15 @@ def setup_logging(level=logging.INFO):
     if not logger.handlers:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(CustomFormatter())
+
+        console_handler.addFilter(BlockNoisyFilesFilter())
+
         logger.addHandler(console_handler)
+
+    # Shut down logs on some librairies
+    logging.getLogger("pylast").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
 
     return logger

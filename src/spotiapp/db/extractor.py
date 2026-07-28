@@ -1,6 +1,7 @@
 import spotipy
 import pylast
-import src.spotiapp.config as config
+import spotiapp.config as config
+from spotiapp.db.database_manager import DatabaseManager
 import logging
 from spotipy import SpotifyOAuth
 
@@ -20,15 +21,15 @@ class SpotifyDataGetter:
         self.threshold = threshold
 
     def get_liked_tracks_data(self) -> dict:
-        self._get_saved_tracks()
+        self._fetch_saved_tracks()
         self._link_tags_data()
         print(f"Collected and enriched {len(self.liked_tracks_dict)} tracks.")
 
         return self.liked_tracks_dict
 
-    def _get_saved_tracks(self):
+    def _fetch_saved_tracks(self):
         """
-        Get the list of the liked tracks on the Spotify account.
+        Fetch the list of the liked tracks on the Spotify account.
         Uses the official Spotify API to get the data."""
         offset = 0
         while True:
@@ -48,6 +49,11 @@ class SpotifyDataGetter:
                 offset += len(items)
             except Exception as e:
                 print(e)
+
+    def _get_tracks_not_inserted_yet(self):
+        """Keep only the tracks not only inserted on the database."""
+        query = "SELECT id FROM liked_tracks;"
+        tracks_id_df = DatabaseManager.execute_transaction(query=query, verbose=True)
 
     def _link_tags_data(self):
         """

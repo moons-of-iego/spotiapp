@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import logging
 from datetime import datetime
-from src.spotiapp.utils.models import SpotifyFormattedData
+from spotiapp.utils.models import SpotifyFormattedData
 
 logger = logging.getLogger(__name__)
 

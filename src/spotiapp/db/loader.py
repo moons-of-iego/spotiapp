@@ -1,7 +1,7 @@
-from src.spotiapp.db.pool_manager import DatabaseManager
-from src.spotiapp.utils.enums import Tables
-from src.spotiapp.utils.models import SpotifyFormattedData
-import src.spotiapp.db.queries as queries
+from spotiapp.db.database_manager import DatabaseManager
+from spotiapp.utils.enums import Tables
+from spotiapp.utils.models import SpotifyFormattedData
+import spotiapp.db.queries as queries
 import logging
 
 logger = logging.getLogger(__name__)

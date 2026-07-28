@@ -4,8 +4,8 @@ import certifi
 os.environ["SSL_CERT_FILE"] = certifi.where()
 
 import logging
-from src.spotiapp.utils.logger import setup_logging
-from src.spotiapp.orchestrator import run
+from spotiapp.utils.logger import setup_logging
+from spotiapp.orchestrator import run
 
 logger = logging.getLogger(__file__)
 
