@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import logging
 from datetime import datetime
-from spotiapp.utils.models import SpotifyFormattedData
+from spotiapp.utils.models import SpotifyFormattedData, SpotifyRawData
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ def _format_track_tag(tag: str, track_id: str) -> dict:
     return {"track_id": track_id, "tag": tag}
 
 
-def format_raw_spotify_data(liked_tracks_dict: dict) -> SpotifyFormattedData:
+def format_raw_spotify_data(raw_data: SpotifyRawData) -> SpotifyFormattedData:
     """Format the data to be inserted on the database.
 
     Args:
@@ -85,7 +85,7 @@ def format_raw_spotify_data(liked_tracks_dict: dict) -> SpotifyFormattedData:
     formatted_track_artist_list = []
     formatted_track_tag_list = []
 
-    for track_id, track_data in liked_tracks_dict.items():
+    for track_id, track_data in raw_data.tracks_to_add.items():
         # -- 1. Format track data --
         if track_id not in formatted_liked_tracks_dict:
             formatted_liked_tracks_dict[track_id] = _format_track(track_id, track_data)

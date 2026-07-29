@@ -22,3 +22,6 @@ log_cli_level = "INFO"
 
 [project.scripts]
 spotiapp-run = "spotiapp.main:main"
+
+[tool.uv]
+package = true

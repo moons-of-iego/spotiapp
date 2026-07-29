@@ -3,6 +3,7 @@ import spotipy
 import pylast
 import spotiapp.config as config
 from spotiapp.db.database_manager import DatabaseManager
+from spotiapp.utils.models import SpotifyRawData
 import logging
 from spotipy import SpotifyOAuth
 
@@ -19,15 +20,19 @@ class SpotifyDataGetter:
 
         self.liked_tracks_dict = {}
         self.duplicates = {}
+        self.tracks_to_add = {}
+        self.tracks_to_delete = list[tuple[str]]
         self.threshold = threshold
 
-    def get_liked_tracks_data(self) -> dict:
+    def get_liked_tracks_data(self) -> SpotifyRawData:
         self._fetch_saved_tracks()
         self._get_tracks_not_inserted_yet()
         self._link_tags_data()
-        print(f"Collected and enriched {len(self.liked_tracks_dict)} tracks.")
+        print(f"Collected and enriched {len(self.tracks_to_add)} tracks.")
 
-        return self.liked_tracks_dict
+        return SpotifyRawData(
+            tracks_to_add=self.tracks_to_add, tracks_to_delete=self.tracks_to_delete
+        )
 
     def _fetch_saved_tracks(self):
         """
@@ -62,23 +67,28 @@ class SpotifyDataGetter:
             self.liked_tracks_dict.keys(), columns=["id"]
         )
         # tracks liked on Spotify, but not inserted on DB yet
-        tracks_to_add = liked_tracks_on_spotify[
+        id_tracks_to_add = liked_tracks_on_spotify[
             ~liked_tracks_on_spotify["id"].isin(liked_tracks_on_bdd["id"])
         ]
+        self.tracks_to_add = {
+            id: self.liked_tracks_dict[id] for id in id_tracks_to_add["id"]
+        }
+
         # tracks inserted on DB but unliked on Spotify since
-        tracks_to_delete = liked_tracks_on_bdd[
+        id_tracks_to_delete = liked_tracks_on_bdd[
             ~liked_tracks_on_bdd["id"].isin(liked_tracks_on_spotify["id"])
         ]
-        # todo : only get tags for the tracks to add.
-        # todo : pass the tracks to delete to the loader, to delete from the database
+        self.tracks_to_delete = list(
+            id_tracks_to_delete.itertuples(index=False, name=None)
+        )
 
     def _link_tags_data(self):
         """
         Get tags data for a list of liked tracks.
         """
         count = 0
-        count_liked_tracks = len(self.liked_tracks_dict)
-        for track, track_data in self.liked_tracks_dict.items():
+        count_liked_tracks = len(self.tracks_to_add)
+        for track, track_data in self.tracks_to_add.items():
             artists_names = []
             top_tags_list = []
             track_name = track_data["name"]
@@ -99,7 +109,7 @@ class SpotifyDataGetter:
                 else:  # if no tags exists for the track, the tag is fetched from the artist
                     top_tags_list = self.__get_artist_top_tags(track_obj)
 
-                self.liked_tracks_dict[track]["tags"] = top_tags_list
+                self.tracks_to_add[track]["tags"] = top_tags_list
                 logger.info(
                     f"Got tags for {track_data['name']} ({count} / {count_liked_tracks})"
                 )

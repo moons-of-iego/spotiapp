@@ -34,3 +34,7 @@ INSERT_INTO_TRACK_TAG = """
     INSERT IGNORE INTO track_tags (track_id, tag)
     VALUES (%(track_id)s, %(tag)s);
 """
+
+DELETE_FROM_TRACKS = """
+    DELETE FROM liked_tracks WHERE id = %s;
+"""
