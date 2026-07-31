@@ -3,7 +3,7 @@ import spotipy
 import pylast
 import spotiapp.config as config
 from spotiapp.db.database_manager import DatabaseManager
-from spotiapp.utils.models import SpotifyRawData
+from spotiapp.utils.models import SpotifySyncDelta
 import logging
 from spotipy import SpotifyOAuth
 
@@ -12,8 +12,7 @@ logger = logging.getLogger(__name__)
 
 class SpotifyDataGetter:
     def __init__(self, threshold: int = 20):
-        scope = "user-library-read"
-        self.sp = spotipy.Spotify(oauth_manager=SpotifyOAuth(scope=scope))
+        self.sp = spotipy.Spotify(oauth_manager=SpotifyOAuth(scope=config.SCOPE))
         self.lastfm = pylast.LastFMNetwork(
             api_key=config.LASTFM_API_KEY, api_secret=config.LASTFM_API_SECRET
         )
@@ -24,13 +23,12 @@ class SpotifyDataGetter:
         self.tracks_to_delete = list[tuple[str]]
         self.threshold = threshold
 
-    def get_liked_tracks_data(self) -> SpotifyRawData:
+    def get_liked_tracks_data(self, force_reload) -> SpotifySyncDelta:
         self._fetch_saved_tracks()
-        self._get_tracks_not_inserted_yet()
+        self._get_sync_delta(force_reload)
         self._link_tags_data()
-        print(f"Collected and enriched {len(self.tracks_to_add)} tracks.")
 
-        return SpotifyRawData(
+        return SpotifySyncDelta(
             tracks_to_add=self.tracks_to_add, tracks_to_delete=self.tracks_to_delete
         )
 
@@ -57,7 +55,7 @@ class SpotifyDataGetter:
             except Exception as e:
                 print(e)
 
-    def _get_tracks_not_inserted_yet(self):
+    def _get_sync_delta(self, force_reload: bool):
         """Keep only the tracks not only inserted on the database."""
         query = "SELECT id FROM liked_tracks;"
         liked_tracks_on_bdd = DatabaseManager.execute_transaction(
@@ -67,12 +65,16 @@ class SpotifyDataGetter:
             self.liked_tracks_dict.keys(), columns=["id"]
         )
         # tracks liked on Spotify, but not inserted on DB yet
-        id_tracks_to_add = liked_tracks_on_spotify[
-            ~liked_tracks_on_spotify["id"].isin(liked_tracks_on_bdd["id"])
-        ]
-        self.tracks_to_add = {
-            id: self.liked_tracks_dict[id] for id in id_tracks_to_add["id"]
-        }
+        if not force_reload:
+            id_tracks_to_add = liked_tracks_on_spotify[
+                ~liked_tracks_on_spotify["id"].isin(liked_tracks_on_bdd["id"])
+            ]
+            self.tracks_to_add = {
+                id: self.liked_tracks_dict[id] for id in id_tracks_to_add["id"]
+            }
+        else:
+            logger.info("FORCE RELOAD ENABLED")
+            self.tracks_to_add = self.liked_tracks_dict
 
         # tracks inserted on DB but unliked on Spotify since
         id_tracks_to_delete = liked_tracks_on_bdd[
@@ -88,6 +90,9 @@ class SpotifyDataGetter:
         """
         count = 0
         count_liked_tracks = len(self.tracks_to_add)
+        if count_liked_tracks == 0:
+            return
+        logger.info(f"{count_liked_tracks} new tracks. Getting tags ...")
         for track, track_data in self.tracks_to_add.items():
             artists_names = []
             top_tags_list = []
@@ -117,6 +122,8 @@ class SpotifyDataGetter:
 
             except Exception as e:
                 logger.error(f"track {track}: error {e}")
+
+        logger.info(f"Collected and enriched {len(self.tracks_to_add)} tracks.")
 
     def __get_artist_top_tags(self, track_obj: pylast.Track) -> list[str]:
         """

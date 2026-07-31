@@ -1,5 +1,6 @@
 import os
 import certifi
+import argparse
 
 os.environ["SSL_CERT_FILE"] = certifi.where()
 
@@ -11,9 +12,17 @@ logger = logging.getLogger(__file__)
 
 
 def main():
-    print("Hello from spotiapp!")
     setup_logging(level=logging.INFO)
-    run()
+    logger.info("===== SPOTIAPP =====")
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--force-reload",
+        action="store_true",
+        dest="force_reload",
+        help="Force the reload of the database. May take time.",
+    )
+    args = parser.parse_args()
+    run(force_reload=args.force_reload)
 
 
 if __name__ == "__main__":

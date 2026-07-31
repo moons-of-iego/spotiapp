@@ -1,18 +1,21 @@
 from spotiapp.db.database_manager import DatabaseManager
 from spotiapp.utils.enums import Tables
-from spotiapp.utils.models import SpotifyFormattedData, SpotifyRawData
+from spotiapp.utils.models import SpotifyIngestionPayload, SpotifySyncDelta
 import spotiapp.db.queries as queries
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def update_database(load_data: SpotifyFormattedData, delete_data: SpotifyRawData):
-    _load_data_in_database(data=load_data)
-    _delete_unliked_tracks(data=delete_data)
+def update_database(ingestion_payload: SpotifyIngestionPayload):
+    _load_data_in_database(data=ingestion_payload)
+    _delete_unliked_tracks(data=ingestion_payload)
 
 
-def _load_data_in_database(data: SpotifyFormattedData):
+def _load_data_in_database(data: SpotifyIngestionPayload):
+    if len(data.tracks_to_add) == 0:
+        logger.info("No new tracks to add.")
+        return
     _load_table_data_from_dict(
         data.albums, query=queries.INSERT_INTO_ALBUMS, table=Tables.ALBUMS
     )
@@ -34,6 +37,8 @@ def _load_data_in_database(data: SpotifyFormattedData):
 
 def _load_table_data_from_dict(data: dict, query: str, table: Tables):
     """Load the data for a particular table."""
+    if len(data) == 0:
+        return
     try:
         DatabaseManager.executemany_transactions(
             query=query, seq_of_params=list(data.values())
@@ -44,6 +49,8 @@ def _load_table_data_from_dict(data: dict, query: str, table: Tables):
 
 
 def _load_table_data_from_list(data: list, query: str, table: Tables):
+    if len(data) == 0:
+        return
     try:
         DatabaseManager.executemany_transactions(query=query, seq_of_params=data)
         logger.info(f"Successfully inserted {len(data)} records into {table.value}")
@@ -51,7 +58,10 @@ def _load_table_data_from_list(data: list, query: str, table: Tables):
         logger.error(f"Failed to insert on table {table}: {e}")
 
 
-def _delete_unliked_tracks(data: SpotifyRawData):
+def _delete_unliked_tracks(data: SpotifySyncDelta):
+    if len(data.tracks_to_delete) == 0:
+        logger.info("No tracks to delete.")
+        return
     try:
         DatabaseManager.executemany_transactions(
             query=queries.DELETE_FROM_TRACKS, seq_of_params=data.tracks_to_delete
@@ -63,5 +73,4 @@ def _delete_unliked_tracks(data: SpotifyRawData):
         logger.error(f"Failed to delete from {Tables.TRACKS.value}: {e}")
 
 
-# todo stopper le pipeline lorsqu'il n'y a pas de modifications à apporter à la BDD
 # todo récupérer la pochette et de nouvelles informations et essayer de récupérer mes propres playlists pour faire de l'apprentissage

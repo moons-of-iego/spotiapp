@@ -48,19 +48,26 @@ class DatabaseManager:
 
         connection = None
         cursor = None
-        data: pd.DataFrame = None
+        data_df: pd.DataFrame = None
 
         try:
             connection = cls._pool.get_connection()
             cursor = connection.cursor(buffered=True)
 
             cursor.execute(query, params)
-            connection.commit()
 
             if verbose:
                 data = cursor.fetchall()
                 cols = [metadata[0] for metadata in cursor.description]
                 data_df = pd.DataFrame(data=data, columns=cols)
+
+            try:
+                while cursor.nextset():
+                    pass
+            except Exception:
+                pass
+
+            connection.commit()
 
         except Exception as e:
             logger.error(e)
@@ -68,9 +75,15 @@ class DatabaseManager:
 
         finally:
             if cursor:
-                cursor.close()
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
             if connection:
-                connection.close()
+                try:
+                    connection.close()
+                except Exception:
+                    pass
 
         return data_df
 
@@ -105,9 +118,15 @@ class DatabaseManager:
 
         finally:
             if cursor:
-                cursor.close()
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
             if connection:
-                connection.close()
+                try:
+                    connection.close()
+                except Exception:
+                    pass
 
         return success
 

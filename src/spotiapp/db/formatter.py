@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import logging
 from datetime import datetime
-from spotiapp.utils.models import SpotifyFormattedData, SpotifyRawData
+from spotiapp.utils.models import SpotifyIngestionPayload, SpotifySyncDelta
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,7 @@ def _format_album(album_data: dict) -> dict:
         "name": album_data.get("name"),
         "type": album_data.get("album_type"),
         "url": album_data.get("external_urls", {}).get("spotify"),
+        "cover": album_data.get("images", [])[1].get("url"),
     }
 
 
@@ -73,7 +74,7 @@ def _format_track_tag(tag: str, track_id: str) -> dict:
     return {"track_id": track_id, "tag": tag}
 
 
-def format_raw_spotify_data(raw_data: SpotifyRawData) -> SpotifyFormattedData:
+def format_raw_spotify_data(sync_delta: SpotifySyncDelta) -> SpotifyIngestionPayload:
     """Format the data to be inserted on the database.
 
     Args:
@@ -85,7 +86,18 @@ def format_raw_spotify_data(raw_data: SpotifyRawData) -> SpotifyFormattedData:
     formatted_track_artist_list = []
     formatted_track_tag_list = []
 
-    for track_id, track_data in raw_data.tracks_to_add.items():
+    if len(sync_delta.tracks_to_add) == 0:
+        return SpotifyIngestionPayload(
+            tracks={},
+            albums={},
+            artists={},
+            track_artists={},
+            track_tags={},
+            tracks_to_add=sync_delta.tracks_to_add,
+            tracks_to_delete=sync_delta.tracks_to_delete,
+        )
+
+    for track_id, track_data in sync_delta.tracks_to_add.items():
         # -- 1. Format track data --
         if track_id not in formatted_liked_tracks_dict:
             formatted_liked_tracks_dict[track_id] = _format_track(track_id, track_data)
@@ -111,10 +123,12 @@ def format_raw_spotify_data(raw_data: SpotifyRawData) -> SpotifyFormattedData:
 
     logger.info(f"Successfully formatted {len(formatted_liked_tracks_dict)} tracks.")
 
-    return SpotifyFormattedData(
+    return SpotifyIngestionPayload(
         tracks=formatted_liked_tracks_dict,
         artists=formatted_artists_dict,
         albums=formatted_albums_dict,
         track_artists=formatted_track_artist_list,
         track_tags=formatted_track_tag_list,
+        tracks_to_add=sync_delta.tracks_to_add,
+        tracks_to_delete=sync_delta.tracks_to_delete,
     )

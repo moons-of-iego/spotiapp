@@ -20,22 +20,22 @@ class CustomFormatter(logging.Formatter):
 
     FORMATS = {
         logging.DEBUG: GREY
-        + "%(filename)-15s [%(asctime)s] ⚙  [DEBUG] %(message)s"
+        + "%(filename)-20s [%(asctime)s] ⚙  [DEBUG] %(message)s"
         + RESET,
         logging.INFO: RESET
-        + "%(filename)-15s [%(asctime)s] "
+        + "%(filename)-20s [%(asctime)s] "
         + BLUE
         + "ℹ  %(message)s"
         + RESET,
         logging.WARNING: YELLOW
-        + "%(filename)-15s [%(asctime)s] ⚠  [ALERTE] %(message)s"
+        + "%(filename)-20s [%(asctime)s] ⚠  [ALERTE] %(message)s"
         + RESET,
         logging.ERROR: RED
-        + "%(filename)-15s [%(asctime)s] ✖  [ERREUR] %(message)s"
+        + "%(filename)-20s [%(asctime)s] ✖  [ERREUR] %(message)s"
         + RESET,
         logging.CRITICAL: RED
         + BOLD
-        + "%(filename)-15s [%(asctime)s] 💥  [CRITIQUE] %(message)s"
+        + "%(filename)-20s [%(asctime)s] 💥  [CRITIQUE] %(message)s"
         + RESET,
     }
 
