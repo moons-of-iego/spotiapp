@@ -8,7 +8,9 @@ CODE_ROOT = Path(__file__).parent.parent.parent
 SQL_DIR = CODE_ROOT / "sql"
 
 
-def _load_sql_query(path: Path) -> str:
+def _load_sql_query(path: Path | str) -> str:
+    if isinstance(path, str):
+        path = CODE_ROOT / path
     with path.open("r", encoding="utf-8") as f:
         return f.read()
 

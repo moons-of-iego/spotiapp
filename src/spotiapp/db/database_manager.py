@@ -1,6 +1,7 @@
 import logging
 import pandas as pd
 from mysql.connector.pooling import MySQLConnectionPool
+from pathlib import Path
 import spotiapp.config as config
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ class DatabaseManager:
         :return data (pd.DataFrame): the data fetched from the query.
         """
         if cls._pool is None:
-            logger.error("Pool not initialized.")
+            logger.debug("Pool not initialized.")
             cls.initialize()
 
         connection = None
@@ -90,7 +91,7 @@ class DatabaseManager:
     @classmethod
     def executescript_transaction(cls, script_query: str):
         if cls._pool is None:
-            logger.error("Pool not initialized.")
+            logger.debug("Pool not initialized.")
             cls.initialize()
 
         connection = None
@@ -101,9 +102,9 @@ class DatabaseManager:
             connection = cls._pool.get_connection()
             cursor = connection.cursor()
 
-            results = cursor.execute(script_query, multi=True)
+            cursor.execute(script_query)
 
-            for _ in results:
+            while cursor.nextset():
                 pass
 
             connection.commit()
@@ -133,7 +134,7 @@ class DatabaseManager:
     @classmethod
     def executemany_transactions(cls, query: str, seq_of_params: list[tuple[str, ...]]):
         if cls._pool is None:
-            logger.error("Pool not initialized.")
+            logger.debug("Pool not initialized.")
             cls.initialize()
 
         connection = None
@@ -159,3 +160,19 @@ class DatabaseManager:
                 connection.close()
 
         return success
+
+    @classmethod
+    def update_database_scheme(cls, path: Path):
+        """
+        Execute a query updating the scheme of the database.
+
+        :param Path path: the path to the .sql file containing the SQL database update script.
+        """
+        try:
+            sql_script = config._load_sql_query(path)
+            cls.executescript_transaction(sql_script)
+            logger.info("Database succesfully updated.")
+
+        except Exception as e:
+            logger.error(e)
+            raise e
