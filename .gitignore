@@ -15,6 +15,7 @@ wheels/
 
 # VS Code files
 .cache
-
+.vscode
 # tmp DB update files
 src/spotiapp/db/tmp_scheme_modif.py
+sql/update_scheme.sql

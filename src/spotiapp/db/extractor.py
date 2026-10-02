@@ -18,13 +18,83 @@ class SpotifyDataGetter:
         )
 
         self.liked_tracks_dict = {}
-        self.duplicates = {}
+        self.playlists_dict = {}
         self.tracks_to_add = {}
         self.tracks_to_delete = list[tuple[str]]
-        self.threshold = threshold
+        self.playlists_to_add = {}
+        self.playlists_to_delete = list[tuple[str]]
+        self.threshold: int = threshold
+        self.user_id: str = None
 
-    def get_liked_tracks_data(self, force_reload) -> SpotifySyncDelta:
+    def get_user_id(self):
+        if self.user_id is None:
+            self.user_id = self.sp.current_user()["account_id"]
+
+    def _fetch_playlists(self):
+        offset = 0
+        while True:
+            try:
+                response = self.sp.current_user_playlists(limit=50, offset=offset)
+                items = response["items"]
+                if len(items) == 0:
+                    break
+                for item in items:
+                    if item["id"] not in self.playlists_dict:
+                        playlist_id = item.get("id")
+                        playlist_name = item.get("name")
+                        playlist_tracks = self._fetch_playlist_tracks(
+                            playlist_id, playlist_name
+                        )
+                        self.playlists_dict[item["id"]] = {
+                            "name": item["name"],
+                            "url": item["external_urls"]["spotify"],
+                            "tracks": playlist_tracks,
+                        }
+                    else:
+                        pass
+                offset += len(items)
+            except Exception as e:
+                logger.error(f"Erreur en récupérant les données de playlist: {e}")
+                raise e
+
+    def _fetch_playlist_tracks(self, playlist_id: str, playlist_name: str):
+        """Fetch all the tracks contained on a specific playlist.
+
+        :parameter str playlist_id: the unique ID of the playlist.
+        :return: the list of the playlist tracks' IDs.
+        """
+        offset = 0
+        track_ids = []
+        logger.info(f"Tentative d'accès à la playlist {playlist_name}")
+        while True:
+            try:
+                response = self.sp.playlist_items(
+                    playlist_id=playlist_id, limit=100, offset=offset, market="FR"
+                )
+                items = response["items"]
+                if len(items) == 0:
+                    break
+                for item in items:
+                    id = item["item"]["id"]
+                    if id not in track_ids:
+                        track_ids.append(id)
+                offset += len(items)
+            except spotipy.exceptions.SpotifyException as e:
+                if e.http_status == 403:  # accès à la playlist interdit
+                    logger.warning(
+                        f"Accès à la playlist {self.sp.playlist(playlist_id, fields="name")} interdit: {e}"
+                    )
+                    break
+                else:
+                    raise e
+            except Exception as e:
+                break
+        logger.info(f"Accès à la playlist {playlist_name} réussie")
+        return track_ids
+
+    def get_spotify_data(self, force_reload) -> SpotifySyncDelta:
         self._fetch_saved_tracks()
+        self._fetch_playlists()
         self._get_sync_delta(force_reload)
         self._link_tags_data()
 
@@ -50,10 +120,11 @@ class SpotifyDataGetter:
                         item["track"]["added_at"] = item["added_at"]
                         self.liked_tracks_dict[item["track"]["id"]] = item["track"]
                     else:
-                        self.duplicates.append(item)
+                        pass
                 offset += len(items)
             except Exception as e:
-                print(e)
+                logger.error(e)
+                raise e
 
     def _get_sync_delta(self, force_reload: bool):
         """Keep only the tracks not only inserted on the database."""

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def run(force_reload: bool = False):
     DatabaseManager.initialize(pool_size=5)
     spotify_data_getter = SpotifyDataGetter()
-    spotify_sync_delta = spotify_data_getter.get_liked_tracks_data(force_reload)
+    spotify_sync_delta = spotify_data_getter.get_spotify_data(force_reload)
 
     spotify_ingestion_payload = format_raw_spotify_data(spotify_sync_delta)
     update_database(spotify_ingestion_payload)
