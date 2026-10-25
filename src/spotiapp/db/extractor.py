@@ -6,6 +6,7 @@ from spotiapp.db.database_manager import DatabaseManager
 from spotiapp.utils.models import SpotifySyncDelta
 import logging
 from spotipy import SpotifyOAuth
+from spotiapp.utils.models import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
@@ -17,15 +18,111 @@ class SpotifyDataGetter:
             api_key=config.LASTFM_API_KEY, api_secret=config.LASTFM_API_SECRET
         )
 
+        self.circuit_breaker = CircuitBreaker()
+
         self.liked_tracks_dict = {}
         self.duplicates = {}
         self.tracks_to_add = {}
         self.tracks_to_delete = list[tuple[str]]
-        self.threshold = threshold
+        self.playlists_to_add = {}
+        self.playlists_to_delete = list[tuple[str]]
+        self.threshold: int = threshold
+        self.user_id: str = None
 
-    def get_liked_tracks_data(self, force_reload) -> SpotifySyncDelta:
+    def execute_sp_call(self, sp_func, **kwargs):
+        "Centralized wrapper to apply the circuit breaker and catch the ban duration to prevent spamming the Spotify API"
+        self.circuit_breaker.check_state()
+
+        try:
+            return sp_func(**kwargs)
+        except spotipy.exceptions.SpotifyException as e:
+            if e.http_status == 429:
+                retry_after = (
+                    3600  # default ban time if Spotify don't give it on the header
+                )
+                if hasattr(e, "headers") and e.headers and "Retry-After" in e.headers:
+                    retry_after = int(e.headers["Retry-After"])
+
+                self.circuit_breaker.trigger(retry_after_seconds=retry_after)
+
+            raise e
+
+    def get_user_id(self):
+        if self.user_id is None:
+            user_data = self.execute_sp_call(self.sp.current_user)
+            self.user_id = user_data["account_id"]
+
+    def _fetch_playlists(self):
+        offset = 0
+        while True:
+            try:
+                response = self.execute_sp_call(
+                    self.sp.current_user_playlists, limit=50, offset=offset
+                )
+                items = response["items"]
+                if len(items) == 0:
+                    break
+                for item in items:
+                    if item["id"] not in self.playlists_dict:
+                        playlist_id = item.get("id")
+                        playlist_name = item.get("name")
+                        playlist_tracks = self._fetch_playlist_tracks(
+                            playlist_id, playlist_name
+                        )
+                        self.playlists_dict[item["id"]] = {
+                            "name": item["name"],
+                            "url": item["external_urls"]["spotify"],
+                            "tracks": playlist_tracks,
+                        }
+                    else:
+                        pass
+                offset += len(items)
+            except Exception as e:
+                logger.error(f"Erreur en récupérant les données de playlist: {e}")
+                raise e
+
+    def _fetch_playlist_tracks(self, playlist_id: str, playlist_name: str):
+        """Fetch all the tracks contained on a specific playlist.
+
+        :parameter str playlist_id: the unique ID of the playlist.
+        :return: the list of the playlist tracks' IDs.
+        """
+        offset = 0
+        track_ids = []
+        logger.info(f"Tentative d'accès à la playlist {playlist_name}")
+
+        while True:
+            try:
+                response = self.execute_sp_call(
+                    self.sp.playlist_items,
+                    playlist_id=playlist_id,
+                    limit=100,
+                    offset=offset,
+                    market="FR",
+                )
+                items = response["items"]
+                if len(items) == 0:
+                    break
+                for item in items:
+                    id = item["item"]["id"]
+                    if id not in track_ids:
+                        track_ids.append(id)
+                offset += len(items)
+            except spotipy.exceptions.SpotifyException as e:
+                if e.http_status == 403:  # accès à la playlist interdit
+                    logger.warning(f"Accès à la playlist {playlist_name} interdit: {e}")
+                    break
+                else:
+                    raise e
+            except Exception as e:
+                break
+        logger.info(f"Accès à la playlist {playlist_name} réussie")
+        return track_ids
+
+    def get_spotify_data(self, force_reload) -> SpotifySyncDelta:
         self._fetch_saved_tracks()
-        self._get_sync_delta(force_reload)
+        self._fetch_playlists()
+        self._get_sync_delta_tracks(force_reload)
         self._link_tags_data()
 
         return SpotifySyncDelta(
@@ -39,8 +136,11 @@ class SpotifyDataGetter:
         offset = 0
         while True:
             try:
-                response = self.sp.current_user_saved_tracks(
-                    limit=50, offset=offset, market="FR"
+                response = self.execute_sp_call(
+                    self.sp.current_user_saved_tracks,
+                    limit=50,
+                    offset=offset,
+                    market="FR",
                 )
                 items = response["items"]
                 if len(items) == 0:
@@ -55,7 +155,7 @@ class SpotifyDataGetter:
             except Exception as e:
                 print(e)
 
-    def _get_sync_delta(self, force_reload: bool):
+    def _get_sync_delta_tracks(self, force_reload: bool):
         """Keep only the tracks not only inserted on the database."""
         query = "SELECT id FROM liked_tracks;"
         liked_tracks_on_bdd = DatabaseManager.execute_transaction(
@@ -83,6 +183,12 @@ class SpotifyDataGetter:
         self.tracks_to_delete = list(
             id_tracks_to_delete.itertuples(index=False, name=None)
         )
+
+    def _get_sync_delta_playlists(self, force_reload: bool):
+        query = "SELECT id FROM playlists;"
+        playlists_on_db = DatabaseManager.execute_transaction(query=query, verbose=True)
+
+        playlists_on_spotify = ...
 
     def _link_tags_data(self):
         """

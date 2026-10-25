@@ -18,3 +18,8 @@ wheels/
 
 # tmp DB update files
 src/spotiapp/db/tmp_scheme_modif.py
+
+
+# dbt branch 
+spotiapp_dbt/
+logs/
