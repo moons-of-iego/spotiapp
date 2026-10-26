@@ -18,8 +18,10 @@ wheels/
 .vscode
 # tmp DB update files
 src/spotiapp/db/tmp_scheme_modif.py
+sql/update_scheme.sql
 
-
-# dbt branch 
-spotiapp_dbt/
+# Ignore dbt artifacts and logs
+spotiapp_dbt/target/
+spotiapp_dbt/logs/
+spotiapp_dbt/dbt_packages/
 logs/
