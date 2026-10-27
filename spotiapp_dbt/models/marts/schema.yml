@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: dim_tracks_enriched
+  - name: dim_tracks_artists_duration
     description: "Table de dimension des titres likés, enrichie avec les noms des artistes concaténés et la durée du morceau, classée par durées croissantes."
     columns:
       - name: track_id

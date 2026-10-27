@@ -39,8 +39,15 @@ def _format_track(track_id: str, track_data: dict) -> dict:
         "album_id": track_data.get("album", {}).get("id"),
         "duration": track_data.get("duration_ms"),
         "url": track_data.get("external_urls", {}).get("spotify"),
-        "date_added": _format_datetime(track_data.get("added_at")),
         "is_single": _format_type_track(track_data.get("type")),
+    }
+
+
+def _format_liked_track(track_id: str, track_data: dict) -> dict:
+    """Extract liked track data."""
+    return {
+        "track_id": track_id,
+        "date_added": _format_datetime(track_data.get("added_at")),
     }
 
 
@@ -80,27 +87,40 @@ def format_raw_spotify_data(sync_delta: SpotifySyncDelta) -> SpotifyIngestionPay
     Args:
         liked_tracks_dict (dict): the dictionnary containing the JSON data retrieved from Spotify API.
     """
-    formatted_liked_tracks_dict = {}
+    formatted_tracks_dict = {}
     formatted_artists_dict = {}
     formatted_albums_dict = {}
     formatted_track_artist_list = []
     formatted_track_tag_list = []
+    formatted_liked_tracks_dict = {}
 
     if len(sync_delta.tracks_to_add) == 0:
+        if len(sync_delta.liked_tracks_to_add) == 0:
+            liked_tracks = {}
+        else:
+            for track_id, track_data in sync_delta.liked_tracks_to_add.items():
+                if track_id not in formatted_liked_tracks_dict:
+                    formatted_liked_tracks_dict[track_id] = _format_liked_track(
+                        track_id, track_data
+                    )
+            liked_tracks = formatted_liked_tracks_dict
+
         return SpotifyIngestionPayload(
             tracks={},
+            liked_tracks=liked_tracks,
             albums={},
             artists={},
             track_artists={},
             track_tags={},
             tracks_to_add=sync_delta.tracks_to_add,
-            tracks_to_delete=sync_delta.tracks_to_delete,
+            liked_tracks_to_add=sync_delta.liked_tracks_to_add,
+            liked_tracks_to_delete=sync_delta.liked_tracks_to_delete,
         )
 
     for track_id, track_data in sync_delta.tracks_to_add.items():
         # -- 1. Format track data --
-        if track_id not in formatted_liked_tracks_dict:
-            formatted_liked_tracks_dict[track_id] = _format_track(track_id, track_data)
+        if track_id not in formatted_tracks_dict:
+            formatted_tracks_dict[track_id] = _format_track(track_id, track_data)
 
         # -- 2. Format artist(s) data and correspondance between track and artist --
         for artist_data in track_data.get("artists", {}):
@@ -121,14 +141,23 @@ def format_raw_spotify_data(sync_delta: SpotifySyncDelta) -> SpotifyIngestionPay
         for tag in tags:
             formatted_track_tag_list.append(_format_track_tag(tag, track_id))
 
-    logger.info(f"Successfully formatted {len(formatted_liked_tracks_dict)} tracks.")
+    for track_id, track_data in sync_delta.liked_tracks_to_add.items():
+        # -- 5. Format liked track data
+        if track_id not in formatted_liked_tracks_dict:
+            formatted_liked_tracks_dict[track_id] = _format_liked_track(
+                track_id, track_data
+            )
+
+    logger.info(f"Successfully formatted {len(formatted_tracks_dict)} tracks.")
 
     return SpotifyIngestionPayload(
-        tracks=formatted_liked_tracks_dict,
+        tracks=formatted_tracks_dict,
+        liked_tracks=formatted_liked_tracks_dict,
         artists=formatted_artists_dict,
         albums=formatted_albums_dict,
         track_artists=formatted_track_artist_list,
         track_tags=formatted_track_tag_list,
         tracks_to_add=sync_delta.tracks_to_add,
-        tracks_to_delete=sync_delta.tracks_to_delete,
+        liked_tracks_to_add=sync_delta.liked_tracks_to_add,
+        liked_tracks_to_delete=sync_delta.liked_tracks_to_delete,
     )

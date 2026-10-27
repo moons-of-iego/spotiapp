@@ -2,8 +2,9 @@
 SELECT 
     track_name, 
     artist_names, 
-    COUNT(*)
-FROM {{ ref ('dim_tracks_enriched')}}
+    COUNT(*),
+    GROUP_CONCAT(track_id)
+FROM {{ ref ('dim_tracks_artists_duration')}}
 GROUP BY 
     track_name, 
     artist_names

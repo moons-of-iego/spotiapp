@@ -15,7 +15,9 @@ def update_database(ingestion_payload: SpotifyIngestionPayload):
 def _load_data_in_database(data: SpotifyIngestionPayload):
     if len(data.tracks_to_add) == 0:
         logger.info("No new tracks to add.")
-        return
+        if len(data.liked_tracks_to_add) == 0:
+            logger.info("No new liked tracks to add.")
+            return
     _load_table_data_from_dict(
         data.albums, query=queries.INSERT_INTO_ALBUMS, table=Tables.ALBUMS
     )
@@ -23,7 +25,7 @@ def _load_data_in_database(data: SpotifyIngestionPayload):
         data.artists, query=queries.INSERT_INTO_ARTISTS, table=Tables.ARTISTS
     )
     _load_table_data_from_dict(
-        data.tracks, query=queries.INSERT_INTO_LIKED_TRACKS, table=Tables.TRACKS
+        data.tracks, query=queries.INSERT_INTO_TRACKS, table=Tables.TRACKS
     )
     _load_table_data_from_list(
         data.track_artists,
@@ -32,6 +34,11 @@ def _load_data_in_database(data: SpotifyIngestionPayload):
     )
     _load_table_data_from_list(
         data.track_tags, query=queries.INSERT_INTO_TRACK_TAG, table=Tables.TRACK_TAGS
+    )
+    _load_table_data_from_dict(
+        data.liked_tracks,
+        query=queries.INSERT_INTO_LIKED_TRACKS,
+        table=Tables.LIKED_TRACKS,
     )
 
 
@@ -59,18 +66,15 @@ def _load_table_data_from_list(data: list, query: str, table: Tables):
 
 
 def _delete_unliked_tracks(data: SpotifySyncDelta):
-    if len(data.tracks_to_delete) == 0:
-        logger.info("No tracks to delete.")
+    if len(data.liked_tracks_to_delete) == 0:
+        logger.info("No liked tracks to delete.")
         return
     try:
         DatabaseManager.executemany_transactions(
-            query=queries.DELETE_FROM_TRACKS, seq_of_params=data.tracks_to_delete
+            query=queries.DELETE_FROM_TRACKS, seq_of_params=data.liked_tracks_to_delete
         )
         logger.info(
-            f"Successfully deleted {len(data.tracks_to_delete)} tracks from liked tracks."
+            f"Successfully deleted {len(data.liked_tracks_to_delete)} tracks from liked tracks."
         )
     except Exception as e:
-        logger.error(f"Failed to delete from {Tables.TRACKS.value}: {e}")
-
-
-# todo récupérer la pochette et de nouvelles informations et essayer de récupérer mes propres playlists pour faire de l'apprentissage
+        logger.error(f"Failed to delete from {Tables.LIKED_TRACKS.value}: {e}")

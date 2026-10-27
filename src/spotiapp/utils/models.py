@@ -7,19 +7,22 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SpotifySyncDelta:
+    liked_tracks_to_add: dict
+    liked_tracks_to_delete: list[tuple[str]]
     tracks_to_add: dict
-    tracks_to_delete: list[tuple[str]]
 
 
 @dataclass
 class SpotifyIngestionPayload:
     tracks: dict
+    liked_tracks: dict
     albums: dict
     artists: dict
     track_artists: list[dict]
     track_tags: list[dict]
     tracks_to_add: dict
-    tracks_to_delete: list[tuple[str]]
+    liked_tracks_to_add: dict
+    liked_tracks_to_delete: list[tuple[str]]
 
 
 class CircuitBreaker:

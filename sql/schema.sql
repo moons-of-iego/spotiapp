@@ -1,3 +1,5 @@
+-- ARCHIVE
+
 USE spotiapp;
 
 CREATE TABLE IF NOT EXISTS albums (
@@ -13,7 +15,7 @@ CREATE TABLE IF NOT EXISTS artists (
     url VARCHAR(250)
 );
 
-CREATE TABLE IF NOT EXISTS liked_tracks (
+CREATE TABLE IF NOT EXISTS tracks (
     id VARCHAR(50) PRIMARY KEY,
     name VARCHAR(512),
     album_id VARCHAR(50), 
@@ -30,7 +32,7 @@ CREATE TABLE IF NOT EXISTS track_tags (
     tag VARCHAR(100) NOT NULL
 
     PRIMARY KEY (track_id, tag),
-    FOREIGN KEY (track_id) REFERENCES liked_tracks(id) ON DELETE CASCADE
+    FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS track_artists (
@@ -38,6 +40,6 @@ CREATE TABLE IF NOT EXISTS track_artists (
     artist_id VARCHAR(50) NOT NULL,
 
     PRIMARY KEY (track_id, artist_id),
-    FOREIGN KEY (track_id) REFERENCES liked_tracks(id) ON DELETE CASCADE,
+    FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE,
     FOREIGN KEY (artist_id) REFERENCES artists(id) ON DELETE CASCADE
 );

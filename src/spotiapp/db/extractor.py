@@ -20,10 +20,11 @@ class SpotifyDataGetter:
 
         self.circuit_breaker = CircuitBreaker()
 
-        self.liked_tracks_dict = {}
+        self.tracks_dict = {}
         self.playlists_dict = {}
+        self.liked_tracks_to_add = {}
         self.tracks_to_add = {}
-        self.tracks_to_delete = list[tuple[str]]
+        self.liked_tracks_to_delete = list[tuple[str]]
         self.playlists_to_add = {}
         self.playlists_to_delete = list[tuple[str]]
         self.threshold: int = threshold
@@ -121,12 +122,14 @@ class SpotifyDataGetter:
 
     def get_spotify_data(self, force_reload) -> SpotifySyncDelta:
         self._fetch_saved_tracks()
-        self._fetch_playlists()
+        # self._fetch_playlists()
         self._get_sync_delta_tracks(force_reload)
         self._link_tags_data()
 
         return SpotifySyncDelta(
-            tracks_to_add=self.tracks_to_add, tracks_to_delete=self.tracks_to_delete
+            liked_tracks_to_add=self.liked_tracks_to_add,
+            liked_tracks_to_delete=self.liked_tracks_to_delete,
+            tracks_to_add=self.tracks_to_add,
         )
 
     def _fetch_saved_tracks(self):
@@ -146,9 +149,9 @@ class SpotifyDataGetter:
                 if len(items) == 0:
                     break
                 for item in items:
-                    if item["track"]["id"] not in self.liked_tracks_dict:
+                    if item["track"]["id"] not in self.tracks_dict:
                         item["track"]["added_at"] = item["added_at"]
-                        self.liked_tracks_dict[item["track"]["id"]] = item["track"]
+                        self.tracks_dict[item["track"]["id"]] = item["track"]
                     else:
                         pass
                 offset += len(items)
@@ -157,31 +160,39 @@ class SpotifyDataGetter:
                 raise e
 
     def _get_sync_delta_tracks(self, force_reload: bool):
-        """Keep only the tracks not only inserted on the database."""
-        query = "SELECT id FROM liked_tracks;"
+        """Keep only the liked tracks not only inserted on the database."""
+        query = "SELECT track_id FROM liked_tracks;"
         liked_tracks_on_bdd = DatabaseManager.execute_transaction(
             query=query, verbose=True
         )
-        liked_tracks_on_spotify = pd.DataFrame(
-            self.liked_tracks_dict.keys(), columns=["id"]
+        tracks_on_bdd = DatabaseManager.execute_transaction(
+            query="SELECT id FROM tracks;", verbose=True
         )
+        liked_tracks_on_spotify = pd.DataFrame(self.tracks_dict.keys(), columns=["id"])
         # tracks liked on Spotify, but not inserted on DB yet
         if not force_reload:
-            id_tracks_to_add = liked_tracks_on_spotify[
-                ~liked_tracks_on_spotify["id"].isin(liked_tracks_on_bdd["id"])
+            id_liked_tracks_to_add = liked_tracks_on_spotify[
+                ~liked_tracks_on_spotify["id"].isin(liked_tracks_on_bdd["track_id"])
             ]
+            id_tracks_to_add = liked_tracks_on_spotify[
+                ~liked_tracks_on_spotify["id"].isin(tracks_on_bdd["id"])
+            ]
+            self.liked_tracks_to_add = {
+                id: self.tracks_dict[id] for id in id_liked_tracks_to_add["id"]
+            }
             self.tracks_to_add = {
-                id: self.liked_tracks_dict[id] for id in id_tracks_to_add["id"]
+                id: self.tracks_dict[id] for id in id_tracks_to_add["id"]
             }
         else:
             logger.info("FORCE RELOAD ENABLED")
-            self.tracks_to_add = self.liked_tracks_dict
+            self.liked_tracks_to_add = self.tracks_dict
+            self.tracks_dict = self.tracks_dict
 
         # tracks inserted on DB but unliked on Spotify since
         id_tracks_to_delete = liked_tracks_on_bdd[
-            ~liked_tracks_on_bdd["id"].isin(liked_tracks_on_spotify["id"])
+            ~liked_tracks_on_bdd["track_id"].isin(liked_tracks_on_spotify["id"])
         ]
-        self.tracks_to_delete = list(
+        self.liked_tracks_to_delete = list(
             id_tracks_to_delete.itertuples(index=False, name=None)
         )
 
@@ -196,10 +207,10 @@ class SpotifyDataGetter:
         Get tags data for a list of liked tracks.
         """
         count = 0
-        count_liked_tracks = len(self.tracks_to_add)
-        if count_liked_tracks == 0:
+        count_tracks = len(self.tracks_to_add)
+        if count_tracks == 0:
             return
-        logger.info(f"{count_liked_tracks} new tracks. Getting tags ...")
+        logger.info(f"{count_tracks} new tracks. Getting tags ...")
         for track, track_data in self.tracks_to_add.items():
             artists_names = []
             top_tags_list = []
@@ -223,7 +234,7 @@ class SpotifyDataGetter:
 
                 self.tracks_to_add[track]["tags"] = top_tags_list
                 logger.info(
-                    f"Got tags for {track_data['name']} ({count} / {count_liked_tracks})"
+                    f"Got tags for {track_data['name']} ({count} / {count_tracks})"
                 )
                 count += 1
 
